@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Koi Pond</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #001a33;
+      font-family: Arial, sans-serif;
+    }
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 6px;
+      z-index: 10;
+    }
+    #controls button {
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="pond"></canvas>
+  <div id="controls">
+    <button id="addFish">Add Fish</button>
+    <button id="addPlant">Add Plant</button>
+    <button id="feedFish">Feed Fish</button>
+  </div>
+  <script>
+    const canvas = document.getElementById('pond');
+    const ctx = canvas.getContext('2d');
+    function resize(){
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Fish {
+      constructor(){
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = 20 + Math.random()*20;
+        this.speed = 1 + Math.random()*1.5;
+        this.color = `hsl(${Math.random()*360},70%,50%)`;
+        this.angle = Math.random() * Math.PI * 2;
+        this.target = null;
+      }
+      update(){
+        if(this.target){
+          const dx = this.target.x - this.x;
+          const dy = this.target.y - this.y;
+          const dist = Math.hypot(dx, dy);
+          if(dist > 1){
+            this.angle = Math.atan2(dy, dx);
+            this.x += Math.cos(this.angle)*this.speed;
+            this.y += Math.sin(this.angle)*this.speed;
+          } else {
+            this.target.eaten = true;
+            this.target = null;
+          }
+        } else {
+          this.x += Math.cos(this.angle)*this.speed;
+          this.y += Math.sin(this.angle)*this.speed;
+          if(Math.random() < 0.02){
+            this.angle += (Math.random() - 0.5);
+          }
+        }
+        if(this.x < -this.size) this.x = canvas.width + this.size;
+        if(this.x > canvas.width + this.size) this.x = -this.size;
+        if(this.y < -this.size) this.y = canvas.height + this.size;
+        if(this.y > canvas.height + this.size) this.y = -this.size;
+      }
+      draw(){
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(-this.size, -this.size/2);
+        ctx.quadraticCurveTo(this.size, 0, -this.size, this.size/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-this.size, -this.size/2);
+        ctx.lineTo(-this.size - this.size/2, 0);
+        ctx.lineTo(-this.size, this.size/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    class Plant {
+      constructor(){
+        this.x = Math.random() * canvas.width;
+        this.height = 50 + Math.random()*50;
+        this.color = `hsl(${90 + Math.random()*40},60%,30%)`;
+      }
+      draw(){
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(this.x, canvas.height);
+        ctx.bezierCurveTo(this.x, canvas.height - this.height/2,
+                          this.x + 20, canvas.height - this.height/2,
+                          this.x + (Math.random()*30 - 15), canvas.height - this.height);
+        ctx.stroke();
+      }
+    }
+
+    class Food {
+      constructor(x, y){
+        this.x = x;
+        this.y = y;
+        this.eaten = false;
+      }
+      draw(){
+        ctx.fillStyle = 'brown';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    class Ripple {
+      constructor(x, y){
+        this.x = x;
+        this.y = y;
+        this.radius = 0;
+        this.alpha = 0.5;
+      }
+      update(){
+        this.radius += 2;
+        this.alpha -= 0.02;
+      }
+      draw(){
+        ctx.strokeStyle = `rgba(255,255,255,${this.alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    }
+
+    const fishes = [], plants = [], foods = [], ripples = [];
+
+    function addFish(){
+      fishes.push(new Fish());
+    }
+    function addPlant(){
+      plants.push(new Plant());
+    }
+    function feed(x, y){
+      const food = new Food(x, y);
+      foods.push(food);
+      fishes.forEach(f => f.target = food);
+    }
+
+    document.getElementById('addFish').onclick = addFish;
+    document.getElementById('addPlant').onclick = addPlant;
+    document.getElementById('feedFish').onclick = () => {
+      feed(Math.random()*canvas.width, Math.random()*canvas.height);
+    };
+
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      feed(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      ripples.push(new Ripple(e.clientX - rect.left, e.clientY - rect.top));
+    });
+
+    // start with a couple fish and plants
+    addFish();
+    addFish();
+    addPlant();
+
+    function animate(){
+      ctx.fillStyle = '#001a33';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      plants.forEach(p => p.draw());
+
+      foods.forEach((food, i) => {
+        if(food.eaten){
+          foods.splice(i,1);
+        } else {
+          food.draw();
+        }
+      });
+
+      ripples.forEach((r, i) => {
+        r.update();
+        if(r.alpha <= 0){
+          ripples.splice(i,1);
+        } else {
+          r.draw();
+        }
+      });
+
+      fishes.forEach(f => {
+        f.update();
+        f.draw();
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
